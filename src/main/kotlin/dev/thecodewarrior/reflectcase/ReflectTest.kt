@@ -1,5 +1,6 @@
 package dev.thecodewarrior.reflectcase
 
+import org.intellij.lang.annotations.Language
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.TestInstance
@@ -65,7 +66,10 @@ import kotlin.reflect.jvm.javaMethod
  */
 @Suppress("PropertyName", "FunctionName", "MemberVisibilityCanBePrivate")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-public abstract class ReflectTest {
+public abstract class ReflectTest(
+    @Language(value = "java", prefix = "import ", suffix = ";")
+    private vararg val globalImports: String
+) {
     /**
      * Called before each test and after [sources] has been reset
      */
@@ -78,7 +82,7 @@ public abstract class ReflectTest {
 
     // storage is in a separate property to get rid of IntelliJ's irritating underline on something that's effectively
     // constant in each context it's used.
-    private var _sources: TestSources = TestSources()
+    private var _sources: TestSources = createSources()
 
     /** Get a Class instance */
     protected inline fun <reified T> _c(): Class<T> = T::class.java
@@ -203,7 +207,13 @@ public abstract class ReflectTest {
 
     @BeforeEach
     private fun beforeEachTest() {
-        _sources = TestSources()
+        _sources = createSources()
         this.initializeForTest()
+    }
+
+    private fun createSources(): TestSources {
+        val sources = TestSources.create()
+        sources.globalImports.addAll(globalImports)
+        return sources
     }
 }

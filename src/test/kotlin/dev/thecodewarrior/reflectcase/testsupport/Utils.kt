@@ -4,6 +4,13 @@ import org.junit.jupiter.api.fail
 import org.opentest4j.AssertionFailedError
 
 /**
+ * Directly returns the passed string. This is useful when deliberately passing a syntax error to a parameter annotated
+ * with @Language. Without this go-between the deliberate error will still be highlighted and treated like a full-blown
+ * error by the IDE.
+ */
+fun swallowSyntax(str: String): String = str
+
+/**
  * _Asserts_ that [expected] and [actual] have the same length and that the elements of each refer to the same objects.
  */
 fun assertSameList(expected: List<Any?>, actual: List<Any?>) {

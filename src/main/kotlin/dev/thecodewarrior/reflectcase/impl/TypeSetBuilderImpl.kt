@@ -3,6 +3,7 @@ package dev.thecodewarrior.reflectcase.impl
 import dev.thecodewarrior.reflectcase.TypeSetBuilder
 import java.lang.reflect.AnnotatedParameterizedType
 import java.lang.reflect.AnnotatedType
+import java.lang.reflect.Field
 import java.lang.reflect.ParameterizedType
 import java.lang.reflect.Type
 
@@ -27,13 +28,13 @@ internal class TypeSetBuilderRoot {
 }
 
 internal class TypeSetBuilderImpl(
-    val root: TypeSetBuilderRoot,
-    val parent: TypeSetBuilderImpl?,
-    val blockName: String,
-    vararg val variables: String
+    private val root: TypeSetBuilderRoot,
+    private val parent: TypeSetBuilderImpl?,
+    private val blockName: String,
+    private vararg val variables: String
 ): TypeSetBuilder {
-    val definitions: MutableList<TypeDefinition> = mutableListOf()
-    val children: MutableList<TypeSetBuilderImpl> = mutableListOf()
+    private val definitions: MutableList<TypeDefinition> = mutableListOf()
+    private val children: MutableList<TypeSetBuilderImpl> = mutableListOf()
 
     override fun import(vararg imports: String) {
         root.imports.addAll(imports)
@@ -91,22 +92,20 @@ internal class TypeSetBuilderImpl(
 
 internal data class TypeDefinition(val block: TypeSetBuilderImpl, val index: Int, val name: String, val type: String) {
     private val fieldName = "type_${index}"
+
     fun getAnnotated(rootClass: Class<*>): AnnotatedType {
-        val blockClass = block.getClass(rootClass)
-
-        val field = blockClass.getDeclaredField(fieldName)
-            ?: throw IllegalStateException("Unable to find field $fieldName in type block")
-
-        return (field.annotatedType as AnnotatedParameterizedType).annotatedActualTypeArguments[0]
+        return (getField(rootClass).annotatedType as AnnotatedParameterizedType).annotatedActualTypeArguments[0]
     }
 
     fun getGeneric(rootClass: Class<*>): Type {
+        return (getField(rootClass).genericType as ParameterizedType).actualTypeArguments[0]
+    }
+
+    fun getField(rootClass: Class<*>): Field {
         val blockClass = block.getClass(rootClass)
 
-        val field = blockClass.getDeclaredField(fieldName)
+        return blockClass.getDeclaredField(fieldName)
             ?: throw IllegalStateException("Unable to find field $fieldName in type block")
-
-        return (field.genericType as ParameterizedType).actualTypeArguments[0]
     }
 
     fun createClassText(): String {

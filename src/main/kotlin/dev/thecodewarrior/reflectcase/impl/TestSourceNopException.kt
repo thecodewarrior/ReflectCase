@@ -1,4 +1,4 @@
-package dev.thecodewarrior.reflectcase
+package dev.thecodewarrior.reflectcase.impl
 
 import java.lang.RuntimeException
 

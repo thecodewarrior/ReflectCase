@@ -4,18 +4,15 @@ import org.intellij.lang.annotations.Language
 import java.lang.reflect.AnnotatedType
 import java.lang.reflect.Type
 
-public interface AnnotatedTypeSet {
-    public val generic: GenericTypeSet
+public interface TypeSet {
     public operator fun get(name: String): AnnotatedType
-    public fun getGeneric(name: String): Type
-}
+    public val genericTypes: GenericTypeSet
 
-public interface GenericTypeSet {
-    public val annotated: AnnotatedTypeSet
-    public operator fun get(name: String): Type
-    public fun getAnnotated(name: String): AnnotatedType
+    public interface GenericTypeSet {
+        public val fullTypes: TypeSet
+        public operator fun get(name: String): Type
+    }
 }
-
 
 @DslMarker
 private annotation class TypeSetDSL

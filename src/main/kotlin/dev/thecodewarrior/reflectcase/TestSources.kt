@@ -1,15 +1,7 @@
 package dev.thecodewarrior.reflectcase
 
-import dev.thecodewarrior.reflectcase.impl.TypeSetBuilderRoot
-import dev.thecodewarrior.reflectcase.impl.TypeSetImpl
-import dev.thecodewarrior.reflectcase.joor.Compile
-import dev.thecodewarrior.reflectcase.joor.CompileOptions
+import dev.thecodewarrior.reflectcase.impl.TestSourcesImpl
 import org.intellij.lang.annotations.Language
-import java.lang.reflect.AnnotatedParameterizedType
-import java.lang.reflect.AnnotatedType
-import java.lang.IllegalStateException
-import java.lang.reflect.ParameterizedType
-import java.lang.reflect.Type
 import kotlin.reflect.KProperty
 
 /**
@@ -17,7 +9,7 @@ import kotlin.reflect.KProperty
  *
  * ## Basic usage
  * ```kotlin
- * val sources = TestSources()
+ * val sources = TestSources.create()
  * val X: Class<*> by sources.add("X", "class X {}")
  * val A: Class<Annotation> by sources.add("A", "@interface A {}")
  * val types = sources.types {
@@ -32,25 +24,27 @@ import kotlin.reflect.KProperty
  * types["T"]
  * ```
  */
-public class TestSources {
-    private val javaSources = mutableMapOf<String, String>()
-    private val typeSets = mutableListOf<TypeSetImpl>()
-    public var options: MutableList<String> = mutableListOf()
-    public var classLoader: ClassLoader? = null
-        private set
+public interface TestSources {
 
-    init {
-        options.add("-parameters")
+    public companion object {
+        /**
+         * Create a new [TestSources] instance
+         */
+        @JvmStatic
+        public fun create(): TestSources {
+            return TestSourcesImpl()
+        }
     }
 
-    public var globalImports: MutableList<String> = mutableListOf(
-        "java.util.*",
-        "java.lang.annotation.ElementType",
-        "java.lang.annotation.Target",
-        "java.lang.annotation.Retention",
-        "java.lang.annotation.RetentionPolicy",
-        "dev.thecodewarrior.reflectcase.TestSourceNopException"
-    )
+    /**
+     * Additional command-line arguments for the Java compiler. Includes `-parameters` by default
+     */
+    public val compilerOptions: MutableList<String>
+
+    /**
+     * Imports to insert at the top of every file. This must be set *before* [add] is called for it to have any effect.
+     */
+    public val globalImports: MutableList<String>
 
     /**
      * Adds the passed class to this compiler. This method automatically prepends the necessary `package` declaration
@@ -78,79 +72,34 @@ public class TestSources {
      * @param code The code to compile into that class
      * @return A property delegate to access the test class once [compile] has been called
      */
-    public fun add(name: String, @Language("java") code: String, trimIndent: Boolean = true): TestClass<*> {
-        requireNotCompiled()
-        if ("gen.$name" in javaSources)
-            throw IllegalArgumentException("Class name $name already exists")
-
-        var fullSource = ""
-        if (name.contains('.'))
-            fullSource += "package gen.${name.substringBeforeLast('.')};import gen.*;"
-        else
-            fullSource += "package gen;"
-
-        fullSource += globalImports.joinToString("") { "import $it;" }
-        fullSource += "\n"
-        var processedCode = if (trimIndent) code.trimIndent() else code
-        processedCode = processedCode.replace("""@rt\((\w+(?:,\s*\w+)*)\)""".toRegex()) { match ->
-            val types = match.groupValues[1].split(",").joinToString(", ") { "ElementType.${it.trim()}" }
-            "@Retention(RetentionPolicy.RUNTIME) @Target({ $types })"
-        }
-        processedCode = processedCode.replace("NOP;", "throw new TestSourceNopException();")
-        fullSource += processedCode
-
-        javaSources["gen.$name"] = fullSource
-
-        return TestClass<Any>("gen.$name")
-    }
-
-    public fun types(packageName: String? = null, block: TypeSetBuilder.() -> Unit): AnnotatedTypeSet {
-        requireNotCompiled()
-        val builder = TypeSetBuilderRoot()
-        builder.rootBlock.block()
-        val set = TypeSetImpl(this, packageName?.let { "gen.$it" } ?: "gen", "__Types_${typeSets.size}", builder)
-        typeSets.add(set)
-        return set.annotated
-    }
-
-    public fun compile() {
-        requireNotCompiled()
-        for (set in typeSets) {
-            javaSources[set.fullClassName] = set.generateClass(globalImports)
-        }
-        this.classLoader = Compile.compile(javaSources, CompileOptions().options(options))
-    }
-
-    public fun getClass(name: String): Class<*> {
-        return Class.forName(name, true, requireCompiled())
-    }
-
-    private fun requireNotCompiled() {
-        if (classLoader != null)
-            throw IllegalStateException("The sources have already been compiled")
-    }
-
-    private fun requireCompiled(): ClassLoader {
-        return classLoader
-            ?: throw IllegalStateException("The sources have not been compiled")
-    }
+    public fun add(name: String, @Language("java") code: String, trimIndent: Boolean = true): ClassDelegate<*>
 
     /**
-     * A delegate for a class declaration
+     * Create an [TypeSet] using the provided builder
      */
-    public inner class TestClass<T>(private val name: String) {
-        private var cache: Class<T>? = null
+    public fun types(packageName: String? = null, block: TypeSetBuilder.() -> Unit): TypeSet
 
-        @Suppress("UNCHECKED_CAST")
-        public operator fun getValue(thisRef: Any?, property: KProperty<*>): Class<T> {
-            cache?.also { return it }
-            return (getClass(name) as Class<T>).also { cache = it }
-        }
+    /**
+     * Compile the classes
+     */
+    public fun compile()
 
-        /**
-         * Gets a version of this class with the specified class type.
-         */
-        @Suppress("UNCHECKED_CAST")
-        public fun <T> typed(): TestClass<T> = this as TestClass<T>
+    /**
+     * Get a class based on its fully-qualified name
+     */
+    public fun getClass(name: String): Class<*>
+
+    /**
+     * Create a delegate for a class based on its fully-qualified name
+     */
+    public fun <T> getDelegate(name: String): ClassDelegate<T>
+
+    /**
+     * A lazy delegate to refer to a runtime-compiled class
+     */
+    public interface ClassDelegate<T> {
+        public fun get(): Class<T>
+        public operator fun getValue(thisRef: Any?, property: KProperty<*>): Class<T>
+        public fun <T> typed(): ClassDelegate<T>
     }
 }
