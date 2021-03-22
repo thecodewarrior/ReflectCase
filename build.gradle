@@ -1,6 +1,9 @@
 plugins {
-    id 'java'
-    id 'org.jetbrains.kotlin.jvm' version '1.4.21'
+    id 'java-library'
+    id 'maven-publish'
+    id 'signing'
+    id 'org.jetbrains.kotlin.jvm' version '1.4.30'
+    id 'org.jetbrains.dokka' version '1.4.30'
 }
 
 group 'dev.thecodewarrior'
@@ -8,6 +11,7 @@ version '0.1.0'
 
 repositories {
     mavenCentral()
+    jcenter()
 }
 
 dependencies {
@@ -16,7 +20,7 @@ dependencies {
     implementation 'org.jetbrains.kotlin:kotlin-reflect'
     implementation 'org.junit.jupiter:junit-jupiter-api:5.7.0'
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.7.0'
-    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:1.7.0'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.7.0'
 }
 
 test {
@@ -26,7 +30,8 @@ test {
 kotlin {
     explicitApi = 'warning'
 }
-compileKotlin {
+
+configure([compileKotlin, compileTestKotlin]) {
     kotlinOptions {
         jvmTarget = '1.8'
         javaParameters = true
@@ -34,10 +39,69 @@ compileKotlin {
     }
 }
 
-compileTestKotlin {
-    kotlinOptions {
-        jvmTarget = '1.8'
-        javaParameters = true
-        freeCompilerArgs += '-Xjvm-default=all'
+// publishing
+
+task sourcesJar(type: Jar) {
+    archiveClassifier = 'sources'
+    from sourceSets.main.allSource
+}
+
+task javadocJar(type: Jar) {
+    archiveClassifier = 'javadoc'
+    dependsOn(dokkaJavadoc)
+    from(dokkaJavadoc.outputDirectory)
+}
+
+publishing {
+    publications {
+        maven(MavenPublication) {
+            artifactId = 'reflectcase'
+
+            from components.java
+            artifact sourcesJar
+            artifact javadocJar
+
+            pom {
+                name = 'ReflectCase'
+                description = 'Runtime compilation for unit testing Java reflection code'
+                url = 'https://github.com/thecodewarrior/ReflectCase'
+                licenses {
+                    license {
+                        name = 'BSD 2-Clause "Simplified" License'
+                        url = 'https://opensource.org/licenses/BSD-2-Clause'
+                    }
+                }
+                developers {
+                    developer {
+                        id = 'thecodewarrior'
+                        name = 'Pierce Corcoran'
+                        email = 'code@thecodewarrior.dev'
+                    }
+                }
+                scm {
+                    connection = 'scm:git:https://github.com/thecodewarrior/ReflectCase.git'
+                    developerConnection = 'scm:git:ssh://github.com/thecodewarrior/ReflectCase.git'
+                    url = 'https://github.com/thecodewarrior/ReflectCase'
+                }
+            }
+        }
     }
+    repositories {
+        maven {
+            def stagingRepo = 'https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/'
+            def snapshotRepo = 'https://s01.oss.sonatype.org/content/repositories/snapshots/'
+            url = project.version.endsWith('SNAPSHOT') ? snapshotRepo : stagingRepo
+            name = 'ossrh'
+            credentials {
+                username ossrhUsername
+                password ossrhPassword
+            }
+        }
+    }
+}
+
+signing {
+    useGpgCmd()
+
+    sign publishing.publications.maven
 }
