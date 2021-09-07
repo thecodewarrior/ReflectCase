@@ -168,7 +168,7 @@ public class Compile {
         }
     }
 
-    static final class CharSequenceJavaFileObject extends SimpleJavaFileObject {
+    protected static final class CharSequenceJavaFileObject extends SimpleJavaFileObject {
         final CharSequence content;
 
         public CharSequenceJavaFileObject(String className, CharSequence content) {
